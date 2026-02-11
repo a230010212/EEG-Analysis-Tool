@@ -233,16 +233,16 @@ def plot_time_freq(tt, eeg, ff, ffteeg, channel_label, save_path=None, show=True
     # === 上圖: 時域訊號 ===
     # 對應 MATLAB: subplot(2,1,1); plot(tt,eeg,'b-')
     axes[0].plot(tt, eeg, 'b-', linewidth=0.5)
+    axes[0].set_xlim(0, 30)  # 只顯示前 30 秒
     axes[0].set_xlabel('時間 (秒)')
     axes[0].set_ylabel('振幅')
     axes[0].set_title(f'濾波後 EEG 訊號 (1-30 Hz 帶通濾波) - {channel_label}')
     axes[0].grid(True, alpha=0.3)
 
     # === 下圖: 頻域訊號 ===
-    # 對應 MATLAB: subplot(2,1,2); plot(ff(1:900),ffteeg(1:900))
-    n_points = min(900, len(ffteeg) // 2)  # 只取正頻率部分
-
-    axes[1].plot(ff[:n_points], ffteeg[:n_points], 'r-', linewidth=0.8)
+    # 對應 MATLAB: subplot(2,1,2); plot(ff(1:901),ffteeg(1:901))
+    n_points = len(ff)
+    axes[1].plot(ff, ffteeg[:n_points], 'r-', linewidth=0.8)
     axes[1].set_xlabel('頻率 (Hz)')
     axes[1].set_ylabel('振幅')
     axes[1].set_title(f'FFT 頻譜 - {channel_label}')
@@ -421,8 +421,11 @@ def analyze_edf(edf_path, channel_index=None):
     ffteeg = np.abs(np.fft.fft(eeg))
 
     # 建立頻率軸
-    # 對應 MATLAB: ff = 0:(1/29):(1/29)*900; (改用標準 FFT 頻率軸)
-    ff = np.fft.fftfreq(len(eeg), 1/fs)
+    # 對應 MATLAB: ff = 0:(1/T):(1/T)*900
+    T = 30               # 固定 30 秒（與 MATLAB 一致）
+    df = 1.0 / T        # 頻率解析度
+    n_freq_points = 901  # 取 0~900 共 901 個點
+    ff = np.arange(n_freq_points) * df
 
     # === 6. 繪圖 ===
     # 對應 MATLAB: figure(2), subplot(2,1,1), subplot(2,1,2)

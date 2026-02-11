@@ -73,7 +73,10 @@ if uploaded_file is not None:
                 # 計算 FFT
                 tt = np.arange(len(x)) / fs
                 ffteeg = np.abs(np.fft.fft(eeg))
-                ff = np.fft.fftfreq(len(eeg), 1/fs)
+                T = 30               # 固定 30 秒（與 MATLAB 一致）
+                df = 1.0 / T        # 頻率解析度
+                n_freq_points = 901  # 取 0~900 共 901 個點
+                ff = np.arange(n_freq_points) * df
                 
                 # 繪圖
                 fig = backend.plot_time_freq(tt, eeg, ff, ffteeg, label, show=False)
