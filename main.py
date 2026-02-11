@@ -234,18 +234,18 @@ def plot_time_freq(tt, eeg, ff, ffteeg, channel_label, save_path=None, show=True
     # 對應 MATLAB: subplot(2,1,1); plot(tt,eeg,'b-')
     axes[0].plot(tt, eeg, 'b-', linewidth=0.5)
     axes[0].set_xlim(0, 30)  # 只顯示前 30 秒
-    axes[0].set_xlabel('時間 (秒)')
-    axes[0].set_ylabel('振幅')
-    axes[0].set_title(f'濾波後 EEG 訊號 (1-30 Hz 帶通濾波) - {channel_label}')
+    axes[0].set_xlabel('Time (sec)')
+    axes[0].set_ylabel('Amplitude')
+    axes[0].set_title(f'Filtered EEG Signal (1-30 Hz) - {channel_label}')
     axes[0].grid(True, alpha=0.3)
 
     # === 下圖: 頻域訊號 ===
     # 對應 MATLAB: subplot(2,1,2); plot(ff(1:901),ffteeg(1:901))
     n_points = len(ff)
     axes[1].plot(ff, ffteeg[:n_points], 'r-', linewidth=0.8)
-    axes[1].set_xlabel('頻率 (Hz)')
-    axes[1].set_ylabel('振幅')
-    axes[1].set_title(f'FFT 頻譜 - {channel_label}')
+    axes[1].set_xlabel('Frequency (Hz)')
+    axes[1].set_ylabel('Amplitude')
+    axes[1].set_title(f'FFT Spectrum - {channel_label}')
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
