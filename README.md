@@ -1,3 +1,4 @@
+https://eeg-analysis-tool-niehfhtem8valk9rd2nuse.streamlit.app/
 # EEG 腦波訊號判讀小程式
 
 這是一個用於分析腦波訊號 (EEG) 的 Python 應用程式。支援讀取 EDF/BDF 格式檔案，進行訊號預處理（帶通濾波）、頻譜分析 (FFT)，並繪製時域與頻域的視覺化圖表。
