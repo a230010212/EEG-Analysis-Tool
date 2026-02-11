@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# PyInstaller
+#  Usually these files are written by a python script, and contains intermediate artifacts that
+#  should not be committed to git.
+build/
+dist/
+*.manifest
+*.spec
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files (Optional: uncomment if you want to ignore large EEG data files)
+*.edf
+*.bdf
+*.csv
+*.xlsx
+*.xls
+
+# Operating System
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+Thumbs.db
+.DS_Store
+
+# Project Specific
+docs/
+images/
+TEST4/
+ref/
+xls/
+
