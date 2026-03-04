@@ -211,6 +211,17 @@ def notch_filter(signal_data, fs, freq=50, Q=30):
     return filtered_signal
 
 
+def resample_signal(signal_data, fs_old, fs_new=250.0):
+    """
+    訊號重新取樣
+    將訊號從 fs_old 轉換為 fs_new (預設 250 Hz)
+    """
+    if fs_old == fs_new:
+        return signal_data
+    num_samples = int(len(signal_data) * fs_new / fs_old)
+    return signal.resample(signal_data, num_samples)
+
+
 def preprocess_eeg(signal_data, fs, bandpass=(0.5, 50), notch=None):
     """
     EEG 訊號預處理流程
@@ -681,6 +692,14 @@ def process_edf_file(edf_path, channel_index=0, output_dir=None):
     print(f"採樣頻率: {fs} Hz")
     print(f"訊號長度: {len(eeg_signal)} 點 ({len(eeg_signal)/fs:.1f} 秒)")
     
+    # === 重新取樣至 250 Hz ===
+    fs_target = 250.0
+    if fs != fs_target:
+        print(f"\n正在重新取樣: {fs} Hz -> {fs_target} Hz...")
+        eeg_signal = resample_signal(eeg_signal, fs, fs_target)
+        fs = fs_target
+        print(f"  重新取樣完成！目前點數: {len(eeg_signal)}")
+
     # === 訊號預處理（帶通濾波去雜訊）===
     print(f"\n{'='*50}")
     print(f"訊號預處理")

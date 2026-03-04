@@ -66,6 +66,12 @@ if uploaded_file is not None:
             fs = signal_headers[channel_index]['sample_rate']
             label = signal_headers[channel_index]['label']
             
+            # 重新取樣至 250 Hz (使用者指定)
+            fs_target = 250.0
+            if fs != fs_target:
+                x = backend.resample_signal(x, fs, fs_target)
+                fs = fs_target
+
             # 帶通濾波
             with st.spinner("正在進行訊號處理..."):
                 eeg = backend.bandpass_filter(x, fs, low_freq=low_freq, high_freq=high_freq)

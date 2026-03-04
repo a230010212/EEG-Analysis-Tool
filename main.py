@@ -210,6 +210,35 @@ def bandpass_filter(signal_data, fs, low_freq=1.0, high_freq=30.0, order=4):
 
 
 # ============================================================
+# 第2.5部分：重新取樣 (Resampling)
+# ============================================================
+
+def resample_signal(signal_data, fs_old, fs_new=250.0):
+    """
+    訊號重新取樣
+    將訊號從 fs_old 轉換為 fs_new (預設 250 Hz)
+    
+    參數:
+        signal_data: 輸入訊號 (numpy array)
+        fs_old: 原始採樣率
+        fs_new: 目標採樣率 (Hz)
+    
+    返回:
+        resampled_signal: 重新取樣後的訊號
+    """
+    if fs_old == fs_new:
+        return signal_data
+    
+    # 計算重新取樣後的樣本數
+    num_samples = int(len(signal_data) * fs_new / fs_old)
+    
+    # 使用 scipy.signal.resample (傅立葉方法)
+    resampled_signal = signal.resample(signal_data, num_samples)
+    
+    return resampled_signal
+
+
+# ============================================================
 # 第3部分：繪圖
 # 對應 MATLAB: figure(2), subplot(2,1,1), subplot(2,1,2)
 # ============================================================
@@ -407,8 +436,17 @@ def analyze_edf(edf_path, channel_index=None):
     print(f"採樣率: {fs} Hz")
     print(f"訊號長度: {len(x)} 點 ({len(x)/fs:.1f} 秒)")
 
-    # === 4. 帶通濾波 [1, 30] Hz ===
-    # 對應 MATLAB: eeg = bandpass(x, [1 30], 256);
+    # === 4. 重新取樣至 250 Hz (使用者指定) ===
+    # 為確保分析一致性，將訊號統一轉為 250 Hz
+    fs_target = 250.0
+    if fs != fs_target:
+        print(f"\n正在重新取樣: {fs} Hz -> {fs_target} Hz...")
+        x = resample_signal(x, fs, fs_target)
+        fs = fs_target
+        print(f"重新取樣完成！目前訊號點數: {len(x)}")
+
+    # === 5. 帶通濾波 [1, 30] Hz ===
+    # 對應 MATLAB: eeg = bandpass(x, [1 30], 250);
     print(f"\n正在進行帶通濾波 [1, 30] Hz...")
     eeg = bandpass_filter(x, fs, low_freq=1.0, high_freq=30.0)
     print("濾波完成！")
