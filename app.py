@@ -76,12 +76,15 @@ if uploaded_file is not None:
             with st.spinner("正在進行訊號處理..."):
                 eeg = backend.bandpass_filter(x, fs, low_freq=low_freq, high_freq=high_freq)
                 
-                # 計算 FFT
+                # 計算 FFT (只取前 30 秒)
+                n_samples_30s = int(30 * fs)
+                eeg_epoch = eeg[:n_samples_30s]
                 tt = np.arange(len(x)) / fs
-                ffteeg = np.abs(np.fft.fft(eeg))
+                ffteeg = np.abs(np.fft.fft(eeg_epoch))
+                
                 # 建立頻率軸（與 MATLAB 一致）
-                T = 30               # 固定 30 秒
-                df = 1.0 / T        # 頻率解析度 = 1/30 Hz，使 901 個點覆蓋 0~30 Hz
+                T = len(eeg_epoch) / fs # 實際擷取的時長 (應約為 30 秒)
+                df = 1.0 / T        # 頻率解析度
                 n_freq_points = 901  # 取 0~900 共 901 個點
                 ff = np.arange(n_freq_points) * df
                 
