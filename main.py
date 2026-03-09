@@ -459,10 +459,10 @@ def analyze_edf(edf_path, channel_index=None):
     ffteeg = np.abs(np.fft.fft(eeg))
 
     # 建立頻率軸
-    # 對應 MATLAB: ff = 0:(1/T):(1/T)*900
-    T = 30               # 固定 30 秒（與 MATLAB 一致）
-    df = 1.0 / T        # 頻率解析度
-    n_freq_points = 901  # 取 0~900 共 901 個點
+    # 對應 MATLAB: ff = 0:(fs/N):(fs/N)*900
+    N = len(eeg)         # FFT 點數
+    df = fs / N          # 根據實際訊號長度計算頻率解析度
+    n_freq_points = 901   # 取 0~900 共 901 個點
     ff = np.arange(n_freq_points) * df
 
     # === 6. 繪圖 ===

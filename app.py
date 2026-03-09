@@ -79,9 +79,10 @@ if uploaded_file is not None:
                 # 計算 FFT
                 tt = np.arange(len(x)) / fs
                 ffteeg = np.abs(np.fft.fft(eeg))
-                T = 30               # 固定 30 秒（與 MATLAB 一致）
-                df = 1.0 / T        # 頻率解析度
-                n_freq_points = 901  # 取 0~900 共 901 個點
+                # 建立頻率軸
+                N = len(eeg)         # FFT 點數
+                df = fs / N          # 根據實際訊號長度計算頻率解析度
+                n_freq_points = 901   # 取 0~900 共 901 個點
                 ff = np.arange(n_freq_points) * df
                 
                 # 繪圖
