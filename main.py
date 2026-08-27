@@ -240,42 +240,64 @@ def resample_signal(signal_data, fs_old, fs_new=250.0):
 
 # ============================================================
 # 第3部分：繪圖
-# 對應 MATLAB: figure(2), subplot(2,1,1), subplot(2,1,2)
+# 目的: 檢測硬體擷取訊號的品質(飄移、雜訊、斷線等)，
+# 因此改為分析「整段錄音」而非單一片段快照
 # ============================================================
 
-def plot_time_freq(tt, eeg, ff, ffteeg, channel_label, save_path=None, show=True):
+def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
+                         freq_limit=30, window_start=0.0, window_duration=30.0,
+                         show_welch=True, save_path=None, show=True):
     """
-    繪製時域和頻域圖
-    對應 MATLAB 的 figure(2) 中的兩個 subplot
+    繪製訊號品質總覽圖：時域波形(可放大檢視任一 30 秒片段)、
+    Welch 平均頻譜(可選擇顯示與否)、時頻圖 (Spectrogram)
 
     參數:
-        tt: 時間軸
-        eeg: 濾波後的 EEG 訊號
-        ff: 頻率軸
-        ffteeg: FFT 結果的振幅
+        tt: 時間軸 (整段錄音)
+        eeg: 濾波後的 EEG 訊號 (整段錄音)
+        ff: Welch 頻譜的頻率軸
+        pxx: Welch 平均功率譜密度
+        tspec, fspec, Sxx: 時頻圖 (spectrogram) 的時間軸/頻率軸/功率矩陣
         channel_label: 通道名稱
+        freq_limit: 頻域圖與時頻圖顯示的最高頻率 (Hz)
+        window_start: 時域圖要放大檢視的起始時間 (秒)
+        window_duration: 時域圖要放大檢視的長度 (秒)
+        show_welch: 是否顯示 Welch 平均頻譜子圖
         save_path: 儲存路徑（None 表示不儲存）
         show: 是否顯示視窗 (預設 True)
     """
-    fig, axes = plt.subplots(2, 1, figsize=(14, 10))
+    n_rows = 3 if show_welch else 2
+    fig, axes = plt.subplots(n_rows, 1, figsize=(14, 14 if show_welch else 10))
+    row = 0
 
-    # === 上圖: 時域訊號 ===
-    # 對應 MATLAB: subplot(2,1,1); plot(tt,eeg,'b-')
-    axes[0].plot(tt, eeg, 'b-', linewidth=0.5)
-    axes[0].set_xlim(0, 30)  # 只顯示前 30 秒
-    axes[0].set_xlabel('Time (sec)')
-    axes[0].set_ylabel('Amplitude')
-    axes[0].set_title(f'Filtered EEG Signal (1-30 Hz) - {channel_label}')
-    axes[0].grid(True, alpha=0.3)
+    # === 1. 時域訊號 (可放大檢視整段錄音中任一 30 秒片段，用於檢查斷線/削頂/突波) ===
+    window_end = min(window_start + window_duration, tt[-1])
+    axes[row].plot(tt, eeg, 'b-', linewidth=0.5)
+    axes[row].set_xlim(window_start, window_end)
+    axes[row].set_xlabel('Time (sec)')
+    axes[row].set_ylabel('Amplitude')
+    axes[row].set_title(f'Filtered EEG Signal ({window_start:.0f}-{window_end:.0f}s) - {channel_label}')
+    axes[row].grid(True, alpha=0.3)
+    row += 1
 
-    # === 下圖: 頻域訊號 ===
-    # 對應 MATLAB: subplot(2,1,2); plot(ff(1:901),ffteeg(1:901))
-    n_points = len(ff)
-    axes[1].plot(ff, ffteeg[:n_points], 'r-', linewidth=0.8)
-    axes[1].set_xlabel('Frequency (Hz)')
-    axes[1].set_ylabel('Amplitude')
-    axes[1].set_title(f'FFT Spectrum - {channel_label}')
-    axes[1].grid(True, alpha=0.3)
+    # === 2. Welch 平均頻譜 (整段錄音的平均 PSD，比單一片段的原始 FFT 更穩定) ===
+    if show_welch:
+        freq_mask = ff <= freq_limit
+        axes[row].semilogy(ff[freq_mask], pxx[freq_mask], 'r-', linewidth=0.8)
+        axes[row].set_xlabel('Frequency (Hz)')
+        axes[row].set_ylabel('PSD (Power/Hz)')
+        axes[row].set_title(f'Welch Averaged Power Spectrum - {channel_label}')
+        axes[row].grid(True, alpha=0.3)
+        row += 1
+
+    # === 3. 時頻圖 (檢查訊號品質是否隨時間變化) ===
+    spec_freq_mask = fspec <= freq_limit
+    power_db = 10 * np.log10(Sxx[spec_freq_mask, :] + 1e-12)
+    im = axes[row].pcolormesh(tspec, fspec[spec_freq_mask], power_db,
+                               shading='gouraud', cmap='jet')
+    axes[row].set_xlabel('Time (sec)')
+    axes[row].set_ylabel('Frequency (Hz)')
+    axes[row].set_title(f'Spectrogram - {channel_label}')
+    fig.colorbar(im, ax=axes[row], label='Power (dB)')
 
     plt.tight_layout()
 
@@ -285,7 +307,7 @@ def plot_time_freq(tt, eeg, ff, ffteeg, channel_label, save_path=None, show=True
 
     if show:
         plt.show()
-    
+
     return fig
 
 
@@ -353,6 +375,34 @@ def select_file_interactive(edf_files):
             print("請輸入有效的數字")
 
 
+def select_time_window_interactive(total_duration, window_duration=30.0):
+    """互動式選擇時域圖要放大檢視的起始時間"""
+    max_start = max(0.0, total_duration - window_duration)
+
+    while True:
+        choice = input(
+            f"\n請輸入時域圖要檢視的起始時間 (秒, 0~{max_start:.0f}, 預設 0): "
+        ).strip()
+
+        if choice == '':
+            return 0.0
+
+        try:
+            start = float(choice)
+            if 0 <= start <= max_start:
+                return start
+            else:
+                print(f"請輸入 0 到 {max_start:.0f} 之間的數字")
+        except ValueError:
+            print("請輸入有效的數字")
+
+
+def select_show_welch_interactive():
+    """互動式選擇是否顯示 Welch 平均頻譜圖"""
+    choice = input("是否顯示 Welch 平均頻譜圖? (Y/n，預設 Y): ").strip().lower()
+    return choice != 'n'
+
+
 def select_channel_interactive(signal_headers):
     """互動式選擇通道"""
     print("\n" + "-" * 40)
@@ -385,7 +435,7 @@ def select_channel_interactive(signal_headers):
 # 對應 MATLAB 主程式邏輯
 # ============================================================
 
-def analyze_edf(edf_path, channel_index=None):
+def analyze_edf(edf_path, channel_index=None, window_start=None, show_welch=None):
     """
     分析 EDF/BDF 檔案 - 對應 MATLAB 主程式完整流程
 
@@ -400,6 +450,8 @@ def analyze_edf(edf_path, channel_index=None):
     參數:
         edf_path: EDF/BDF 檔案路徑
         channel_index: 通道索引（None 表示互動選擇）
+        window_start: 時域圖要放大檢視的起始時間，秒（None 表示互動選擇）
+        show_welch: 是否顯示 Welch 平均頻譜圖（None 表示互動選擇）
     """
     edf_path = Path(edf_path)
     print(f"\n{'='*60}")
@@ -451,29 +503,40 @@ def analyze_edf(edf_path, channel_index=None):
     eeg = bandpass_filter(x, fs, low_freq=1.0, high_freq=30.0)
     print("濾波完成！")
 
-    # === 5. 建立時間軸 & 計算 FFT ===
-    # 對應 MATLAB: tt = (0:length(x)-1) / fs;
+    # === 5. 建立時間軸 & 分析整段錄音的訊號品質 ===
+    # 目的: 測試硬體訊號品質時，問題(飄移、雜訊、斷線)常是間歇性的，
+    # 只看單一片段快照會漏掉，因此改為分析整段錄音
     tt = np.arange(len(x)) / fs
 
-    # 對應 MATLAB: ffteeg = abs(fft(eeg));
-    ffteeg = np.abs(np.fft.fft(eeg))
+    # Welch 平均頻譜: 以 30 秒為一個 epoch、50% 重疊，取整段錄音的平均 PSD
+    # 比單一片段的原始 FFT 更能代表整段錄音的真實頻率內容，變異也更小
+    epoch_sec = 30
+    nperseg = min(int(epoch_sec * fs), len(eeg))
+    ff, pxx = signal.welch(eeg, fs=fs, nperseg=nperseg, noverlap=nperseg // 2)
 
-    # 建立頻率軸
-    # 對應 MATLAB: ff = 0:(1/T):(1/T)*900
-    T = 30               # 固定 30 秒（與 MATLAB 一致）
-    df = 1.0 / T        # 頻率解析度 = 1/30 Hz，使 901 個點覆蓋 0~30 Hz
-    n_freq_points = 900  # 取 0~900 共 901 個點
-    ff = np.arange(n_freq_points) * df
+    # 時頻圖 (Spectrogram): 檢視訊號品質是否隨時間變化 (飄移、突波、斷線)
+    spec_window_sec = 2
+    spec_nperseg = min(int(spec_window_sec * fs), len(eeg))
+    fspec, tspec, Sxx = signal.spectrogram(eeg, fs=fs, nperseg=spec_nperseg,
+                                            noverlap=spec_nperseg // 2)
 
-    # === 6. 繪圖 ===
-    # 對應 MATLAB: figure(2), subplot(2,1,1), subplot(2,1,2)
+    # === 6. 選擇時域圖檢視片段 & 是否顯示 Welch 頻譜 ===
+    if window_start is None:
+        window_start = select_time_window_interactive(tt[-1])
+
+    if show_welch is None:
+        show_welch = select_show_welch_interactive()
+
+    # === 7. 繪圖 ===
     print("\n正在繪製圖表...")
 
     output_dir = edf_path.parent
     base_name = edf_path.stem
     save_path = output_dir / f"{base_name}_analysis.png"
 
-    plot_time_freq(tt, eeg, ff, ffteeg, channel_label, save_path=save_path)
+    plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
+                         freq_limit=30, window_start=window_start,
+                         show_welch=show_welch, save_path=save_path)
 
     print("\n分析完成！")
 
