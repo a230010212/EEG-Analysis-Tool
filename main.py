@@ -452,20 +452,17 @@ def analyze_edf(edf_path, channel_index=None):
     print("濾波完成！")
 
     # === 5. 建立時間軸 & 計算 FFT ===
-    # 取前 30 秒資料計算 FFT，模擬 MATLAB 行為 (方案 B)
-    n_samples_30s = int(30 * fs)
-    eeg_epoch = eeg[:n_samples_30s]
-    tt_epoch = np.arange(len(eeg_epoch)) / fs
-    
-    # 為了繪製完整 30 秒時域圖，我們仍保留原本的 tt 和 eeg
-    # 但 FFT 僅對 30 秒區段計算
-    ffteeg = np.abs(np.fft.fft(eeg_epoch))
+    # 對應 MATLAB: tt = (0:length(x)-1) / fs;
+    tt = np.arange(len(x)) / fs
+
+    # 對應 MATLAB: ffteeg = abs(fft(eeg));
+    ffteeg = np.abs(np.fft.fft(eeg))
 
     # 建立頻率軸
     # 對應 MATLAB: ff = 0:(1/T):(1/T)*900
-    T = len(eeg_epoch) / fs    # 實際擷取的時長 (應約為 30 秒)
-    df = 1.0 / T         # 頻率解析度
-    n_freq_points = 901  # 取 0~900 共 901 個點
+    T = 30               # 固定 30 秒（與 MATLAB 一致）
+    df = 1.0 / T        # 頻率解析度 = 1/30 Hz，使 901 個點覆蓋 0~30 Hz
+    n_freq_points = 900  # 取 0~900 共 901 個點
     ff = np.arange(n_freq_points) * df
 
     # === 6. 繪圖 ===
