@@ -62,6 +62,7 @@ if uploaded_file is not None:
         with st.expander("進階設定"):
             low_freq = st.number_input("低截止頻率 (Hz)", value=1.0, min_value=0.1)
             high_freq = st.number_input("高截止頻率 (Hz)", value=30.0, min_value=1.0)
+            show_fft = st.checkbox("顯示原始 FFT 頻譜 (本專案最初的頻域圖)", value=True)
             show_welch = st.checkbox("顯示 Welch 平均頻譜", value=True)
 
             if total_duration > 1:
@@ -115,6 +116,7 @@ if uploaded_file is not None:
                                                    label, freq_limit=freq_limit,
                                                    window_start=window_start,
                                                    window_duration=window_duration,
+                                                   show_fft=show_fft,
                                                    show_welch=show_welch, show=False)
                 
                 # 顯示圖表

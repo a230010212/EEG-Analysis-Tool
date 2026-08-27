@@ -246,9 +246,10 @@ def resample_signal(signal_data, fs_old, fs_new=250.0):
 
 def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
                          freq_limit=30, window_start=0.0, window_duration=30.0,
-                         show_welch=True, save_path=None, show=True):
+                         show_fft=True, show_welch=True, save_path=None, show=True):
     """
-    繪製訊號品質總覽圖：時域波形(可放大檢視任一 30 秒片段)、
+    繪製訊號品質總覽圖：時域波形(可放大檢視任一片段)、
+    原始 FFT 頻譜(對應該片段，即本專案最初的頻域圖)、
     Welch 平均頻譜(可選擇顯示與否)、時頻圖 (Spectrogram)
 
     參數:
@@ -259,17 +260,20 @@ def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
         tspec, fspec, Sxx: 時頻圖 (spectrogram) 的時間軸/頻率軸/功率矩陣
         channel_label: 通道名稱
         freq_limit: 頻域圖與時頻圖顯示的最高頻率 (Hz)
-        window_start: 時域圖要放大檢視的起始時間 (秒)
-        window_duration: 時域圖要放大檢視的長度 (秒)
+        window_start: 時域圖/原始 FFT 要檢視的起始時間 (秒)
+        window_duration: 時域圖/原始 FFT 要檢視的長度 (秒)
+        show_fft: 是否顯示所選片段的原始 FFT 頻譜子圖
         show_welch: 是否顯示 Welch 平均頻譜子圖
         save_path: 儲存路徑（None 表示不儲存）
         show: 是否顯示視窗 (預設 True)
     """
-    n_rows = 3 if show_welch else 2
-    fig, axes = plt.subplots(n_rows, 1, figsize=(14, 14 if show_welch else 10))
+    n_rows = 1 + int(show_fft) + int(show_welch) + 1  # 時域 + FFT? + Welch? + 時頻圖
+    fig, axes = plt.subplots(n_rows, 1, figsize=(14, 4.5 * n_rows))
+    if n_rows == 1:
+        axes = [axes]
     row = 0
 
-    # === 1. 時域訊號 (可放大檢視整段錄音中任一 30 秒片段，用於檢查斷線/削頂/突波) ===
+    # === 1. 時域訊號 (可放大檢視整段錄音中任一片段，用於檢查斷線/削頂/突波) ===
     window_end = min(window_start + window_duration, tt[-1])
     axes[row].plot(tt, eeg, 'b-', linewidth=0.5)
     axes[row].set_xlim(window_start, window_end)
@@ -279,7 +283,27 @@ def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
     axes[row].grid(True, alpha=0.3)
     row += 1
 
-    # === 2. Welch 平均頻譜 (整段錄音的平均 PSD，比單一片段的原始 FFT 更穩定) ===
+    # === 2. 原始 FFT 頻譜 (本專案最初的頻域圖，只對應時域圖選取的片段) ===
+    if show_fft:
+        fs = 1.0 / (tt[1] - tt[0])
+        start_idx = int(round(window_start * fs))
+        end_idx = int(round(window_end * fs))
+        eeg_segment = eeg[start_idx:end_idx]
+
+        ffteeg = np.abs(np.fft.fft(eeg_segment))
+        T_seg = len(eeg_segment) / fs
+        df_seg = 1.0 / T_seg
+        n_freq_points = min(int(freq_limit / df_seg) + 1, len(ffteeg))
+        ff_seg = np.arange(n_freq_points) * df_seg
+
+        axes[row].plot(ff_seg, ffteeg[:n_freq_points], 'r-', linewidth=0.8)
+        axes[row].set_xlabel('Frequency (Hz)')
+        axes[row].set_ylabel('Amplitude')
+        axes[row].set_title(f'FFT Spectrum ({window_start:.0f}-{window_end:.0f}s) - {channel_label}')
+        axes[row].grid(True, alpha=0.3)
+        row += 1
+
+    # === 3. Welch 平均頻譜 (整段錄音的平均 PSD，比單一片段的原始 FFT 更穩定) ===
     if show_welch:
         freq_mask = ff <= freq_limit
         axes[row].semilogy(ff[freq_mask], pxx[freq_mask], 'r-', linewidth=0.8)
@@ -289,7 +313,7 @@ def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
         axes[row].grid(True, alpha=0.3)
         row += 1
 
-    # === 3. 時頻圖 (檢查訊號品質是否隨時間變化) ===
+    # === 4. 時頻圖 (檢查訊號品質是否隨時間變化) ===
     spec_freq_mask = fspec <= freq_limit
     power_db = 10 * np.log10(Sxx[spec_freq_mask, :] + 1e-12)
     im = axes[row].pcolormesh(tspec, fspec[spec_freq_mask], power_db,
@@ -403,6 +427,12 @@ def select_show_welch_interactive():
     return choice != 'n'
 
 
+def select_show_fft_interactive():
+    """互動式選擇是否顯示原始 FFT 頻譜圖 (本專案最初的頻域圖)"""
+    choice = input("是否顯示原始 FFT 頻譜圖? (Y/n，預設 Y): ").strip().lower()
+    return choice != 'n'
+
+
 def select_channel_interactive(signal_headers):
     """互動式選擇通道"""
     print("\n" + "-" * 40)
@@ -435,7 +465,7 @@ def select_channel_interactive(signal_headers):
 # 對應 MATLAB 主程式邏輯
 # ============================================================
 
-def analyze_edf(edf_path, channel_index=None, window_start=None, show_welch=None):
+def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, show_welch=None):
     """
     分析 EDF/BDF 檔案 - 對應 MATLAB 主程式完整流程
 
@@ -451,6 +481,7 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_welch=None
         edf_path: EDF/BDF 檔案路徑
         channel_index: 通道索引（None 表示互動選擇）
         window_start: 時域圖要放大檢視的起始時間，秒（None 表示互動選擇）
+        show_fft: 是否顯示原始 FFT 頻譜圖（None 表示互動選擇）
         show_welch: 是否顯示 Welch 平均頻譜圖（None 表示互動選擇）
     """
     edf_path = Path(edf_path)
@@ -520,9 +551,12 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_welch=None
     fspec, tspec, Sxx = signal.spectrogram(eeg, fs=fs, nperseg=spec_nperseg,
                                             noverlap=spec_nperseg // 2)
 
-    # === 6. 選擇時域圖檢視片段 & 是否顯示 Welch 頻譜 ===
+    # === 6. 選擇時域圖檢視片段 & 是否顯示 FFT / Welch 頻譜 ===
     if window_start is None:
         window_start = select_time_window_interactive(tt[-1])
+
+    if show_fft is None:
+        show_fft = select_show_fft_interactive()
 
     if show_welch is None:
         show_welch = select_show_welch_interactive()
@@ -535,7 +569,7 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_welch=None
     save_path = output_dir / f"{base_name}_analysis.png"
 
     plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
-                         freq_limit=30, window_start=window_start,
+                         freq_limit=30, window_start=window_start, show_fft=show_fft,
                          show_welch=show_welch, save_path=save_path)
 
     print("\n分析完成！")
