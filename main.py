@@ -352,7 +352,9 @@ def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
 
     # === 1. 時域訊號 (可放大檢視整段錄音中任一片段，用於檢查斷線/削頂/突波) ===
     window_end = min(window_start + window_duration, tt[-1])
-    axes[row].plot(tt, eeg, 'b-', linewidth=0.5)
+    # 只繪製選取區段，讓 Y 軸自動縮放不受其他時段的突波影響。
+    window_mask = (tt >= window_start) & (tt <= window_end)
+    axes[row].plot(tt[window_mask], eeg[window_mask], 'b-', linewidth=0.5)
     axes[row].set_xlim(window_start, window_end)
     axes[row].set_xlabel('Time (sec)')
     axes[row].set_ylabel('Amplitude')
