@@ -28,10 +28,12 @@ import argparse
 import csv
 
 
-def read_csv(filepath, sample_rate=250.0):
-    """Read numeric CSV. time_s/time are seconds; unit-step integer t is an index."""
-    if not np.isfinite(sample_rate) or sample_rate <= 0:
-        raise ValueError('CSV sample rate must be finite and positive')
+CSV_SAMPLE_RATE = 250.0
+
+
+def read_csv(filepath):
+    """Read CSV at fixed 250 Hz, preserving sample values and row order."""
+    sample_rate = CSV_SAMPLE_RATE
     with open(filepath, encoding='utf-8-sig', newline='') as stream:
         rows = [row for row in csv.reader(stream) if any(cell.strip() for cell in row)]
     if len(rows) < 3:
@@ -46,37 +48,11 @@ def read_csv(filepath, sample_rate=250.0):
     if data.ndim != 2 or data.shape[1] != len(labels) or not np.isfinite(data).all():
         raise ValueError('CSV contains missing/nonfinite values or mismatched columns')
     names = [label.lower() for label in labels]
-    time_index = next((names.index(name) for name in ('time_s', 'time', 't') if name in names), None)
-    notes = []
-    times = None
-    if time_index is not None:
-        values = data[:, time_index]
-        steps = np.diff(values)
-        is_counter = names[time_index] == 't' and np.allclose(steps, 1) and np.allclose(values, np.round(values))
-        if is_counter:
-            notes.append(f't is a sample index; using {sample_rate:g} Hz')
-        else:
-            if np.any(steps <= 0):
-                positive_steps = steps[steps > 0]
-                if not len(positive_steps):
-                    raise ValueError('CSV timestamps have no positive intervals')
-                sample_rate = 1 / np.median(positive_steps)
-                notes.append('Timestamps repeat or move backwards: rate estimated from median positive interval; row order preserved on a uniform grid')
-            else:
-                times = values - values[0]
-                sample_rate = (len(values) - 1) / times[-1]
-            if not np.isfinite(sample_rate) or sample_rate <= 0:
-                raise ValueError('Cannot infer a valid CSV sample rate')
-            if times is not None and not np.allclose(steps, 1 / sample_rate, rtol=0.01, atol=1e-9):
-                notes.append('Uneven timestamps: linearly interpolated onto a uniform time grid')
-    else:
-        notes.append(f'No timestamps; using {sample_rate:g} Hz')
-    channels = [i for i in range(len(labels)) if i != time_index]
+    notes = ['CSV: fixed 250 Hz; time axis = sample index / 250; file timestamps ignored']
+    channels = [i for i, name in enumerate(names) if name not in ('time_s', 'time', 't')]
     if not channels:
         raise ValueError('CSV has no signal channels')
-    uniform_time = np.arange(len(data)) / sample_rate
-    signals = [np.interp(uniform_time, times, data[:, i]) if times is not None else data[:, i].copy()
-               for i in channels]
+    signals = [data[:, i].copy() for i in channels]
     headers = [{'label': labels[i], 'sample_rate': sample_rate, 'n_samples': len(data),
                 'dimension': 'uV' if names[i].endswith('_uv') else 'ADC' if names[i].startswith('adc') else ''}
                for i in channels]
@@ -86,11 +62,11 @@ def read_csv(filepath, sample_rate=250.0):
     return signals, headers, header
 
 
-def read_recording(filepath, sample_rate=250.0):
+def read_recording(filepath):
     """Dispatch CSV while preserving the existing EDF/BDF/CSV reader."""
     suffix = Path(filepath).suffix.lower()
     if suffix == '.csv':
-        return read_csv(filepath, sample_rate)
+        return read_csv(filepath)
     if suffix in ('.edf', '.bdf'):
         return read_edf(filepath)
     raise ValueError(f'Unsupported recording format: {suffix}')
@@ -544,7 +520,7 @@ def select_channel_interactive(signal_headers):
 # 對應 MATLAB 主程式邏輯
 # ============================================================
 
-def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, show_welch=None, sample_rate=250.0):
+def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, show_welch=None):
     """
     分析 EDF/BDF/CSV 檔案 - 對應 MATLAB 主程式完整流程
 
@@ -570,7 +546,7 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, 
 
     # === 1. 讀取 EDF 檔案 ===
     # 對應 MATLAB: info = edfinfo('...'); data = edfread('...');
-    signals, signal_headers, header = read_recording(edf_path, sample_rate)
+    signals, signal_headers, header = read_recording(edf_path)
 
     # 顯示檔案資訊
     print(f"檔案格式: {header['format']}")
@@ -677,10 +653,7 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze EDF/BDF/CSV EEG recordings")
     parser.add_argument('file', nargs='?', help="File path or listed file number")
     parser.add_argument('--list', '-l', action='store_true', help="List .edf/ and raw_data/ recordings")
-    parser.add_argument('--sample-rate', type=float, default=250.0, help="CSV fallback sample rate in Hz (default: 250); timestamps take priority")
     args = parser.parse_args()
-    if not np.isfinite(args.sample_rate) or args.sample_rate <= 0:
-        parser.error('--sample-rate must be finite and positive')
     if args.list:
         display_files(edf_files)
         return
@@ -693,7 +666,7 @@ def main():
                 selected_file = edf_files[index]
             else:
                 selected_file = Path(args.file)
-            analyze_edf(selected_file, sample_rate=args.sample_rate)
+            analyze_edf(selected_file)
         except (OSError, ValueError) as exc:
             parser.exit(1, f"Error: {exc}\n")
         return
@@ -704,7 +677,7 @@ def main():
             break
 
         try:
-            analyze_edf(selected_file, sample_rate=args.sample_rate)
+            analyze_edf(selected_file)
         except Exception as e:
             print(f"\n錯誤: {e}")
             import traceback

@@ -12,23 +12,24 @@ import main
 
 
 class CsvSupportTests(unittest.TestCase):
-    def read_text(self, text, rate=250):
+    def read_text(self, text):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'recording.csv'
             path.write_text(text, encoding='utf-8-sig')
-            return main.read_recording(path, rate)
+            return main.read_recording(path)
 
-    def test_counter_and_fallback_rate(self):
-        signals, headers, _ = self.read_text('t,adc1,adc2\n1,10,0\n2,20,0\n3,30,0\n', 500)
+    def test_counter_and_missing_time_use_250_hz(self):
+        signals, headers, _ = self.read_text('t,adc1,adc2\n1,10,0\n2,20,0\n3,30,0\n')
         self.assertEqual([h['label'] for h in headers], ['adc1', 'adc2'])
-        self.assertEqual(headers[0]['sample_rate'], 500)
+        self.assertEqual(headers[0]['sample_rate'], 250)
         np.testing.assert_array_equal(signals[0], [10, 20, 30])
         self.assertEqual(self.read_text('CH1\n1\n2\n')[1][0]['sample_rate'], 250)
 
-    def test_seconds_override_fallback(self):
-        signals, headers, _ = self.read_text('time_s,CH1_raw_uV\n4,1\n4.004,2\n4.008,3\n', 500)
+    def test_seconds_do_not_change_rate_or_samples(self):
+        signals, headers, info = self.read_text('time_s,CH1_raw_uV\n4,1\n4.003,9\n4.010,3\n')
         self.assertAlmostEqual(headers[0]['sample_rate'], 250)
-        np.testing.assert_allclose(signals[0], [1, 2, 3])
+        np.testing.assert_array_equal(signals[0], [1, 9, 3])
+        self.assertEqual(info['record_duration'], 3 / 250)
         self.assertEqual(headers[0]['dimension'], 'uV')
 
     def test_clock_reset_preserves_order(self):
@@ -38,12 +39,13 @@ class CsvSupportTests(unittest.TestCase):
         self.assertTrue(info['notes'])
 
     def test_invalid_inputs(self):
-        for text in ('time_s,CH1\n0,1\n0,2\n', 'adc1\nNaN\n1\n',
+        for text in ('adc1\nNaN\n1\n',
                      'adc1,adc2\n1,2\n3\n', 'time_s\n0\n1\n'):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.read_text(text)
-        with self.assertRaises(ValueError):
-            self.read_text('adc1\n1\n2\n', -1)
+        signals, headers, _ = self.read_text('time_s,CH1\n0,1\n0,2\n')
+        self.assertEqual(headers[0]['sample_rate'], 250)
+        np.testing.assert_array_equal(signals[0], [1, 2])
 
     def test_streamlit_csv_analysis(self):
         from streamlit.testing.v1 import AppTest
@@ -55,6 +57,7 @@ class CsvSupportTests(unittest.TestCase):
                 self.assertFalse(app.exception)
                 self.assertFalse(app.error)
                 self.assertIn('adc1' if path.name.startswith('raw') else 'CH1_raw_uV', app.selectbox[0].value)
+                self.assertIn('250.0 Hz', app.selectbox[0].value)
                 app.button[0].click().run(timeout=30)
                 self.assertFalse(app.exception)
                 self.assertFalse(app.error)
@@ -72,6 +75,11 @@ class CsvSupportTests(unittest.TestCase):
             with self.subTest(path=path):
                 signals, headers, info = main.read_recording(path)
                 self.assertTrue(all(np.isfinite(x).all() for x in signals))
+                if path.suffix.lower() == '.csv':
+                    self.assertTrue(all(h['sample_rate'] == 250 for h in headers))
+                    self.assertEqual(info['record_duration'], len(signals[0]) / 250)
+                    if path.name.startswith('eeg_processed'):
+                        self.assertEqual(info['record_duration'], 368)
                 if path.suffix.lower() != '.csv':
                     old_signals, old_headers, old_info = main.read_edf(path)
                     self.assertEqual(headers, old_headers)

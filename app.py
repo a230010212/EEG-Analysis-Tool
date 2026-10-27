@@ -18,11 +18,8 @@ st.markdown("上傳 EDF/BDF/CSV 檔案進行時頻域分析")
 uploaded_file = st.file_uploader("選擇 EDF/BDF/CSV 檔案", type=["edf", "bdf", "csv"])
 
 if uploaded_file is not None:
-    csv_sample_rate = 250.0
     if Path(uploaded_file.name).suffix.lower() == '.csv':
-        csv_sample_rate = st.number_input("CSV 採樣率 (Hz，無時間欄或 t 為樣本編號時使用)",
-                                          min_value=0.1, value=250.0)
-        st.caption("time_s / time 為秒數，自動推算採樣率；逐筆加一的整數 t 視為樣本編號。ADC 保留原始單位。")
+        st.caption("CSV 採樣率固定 250 Hz，時間軸以樣本序號 ÷ 250 建立，不使用檔案時間欄推算或插值。ADC 保留原始單位。")
     # 儲存暫存檔 (因為 backend.read_edf 需要檔案路徑)
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
@@ -34,7 +31,7 @@ if uploaded_file is not None:
         
         # 讀取檔案
         with st.spinner("正在讀取檔案..."):
-            signals, signal_headers, header = backend.read_recording(tmp_path, sample_rate=csv_sample_rate)
+            signals, signal_headers, header = backend.read_recording(tmp_path)
             
         # 顯示標頭資訊
         col1, col2 = st.columns(2)

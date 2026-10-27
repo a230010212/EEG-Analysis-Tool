@@ -7,16 +7,15 @@ CLI 與網頁版均支援 CSV，使用與 EDF/BDF 相同的重新取樣至 250 H
 ```bash
 python main.py --list
 python main.py raw_data/raw原始_.csv
-python main.py raw_data/raw原始_.csv --sample-rate 500
 streamlit run app.py
 python -m unittest discover -s tests -v
 ```
 
 - CLI 的檔案列表包含 `.edf/` 下的 EDF/BDF 與 `raw_data/` 下的 CSV；原有 EDF/BDF 編號保留，CSV 接在後面。網頁版可直接上傳 CSV。
-- `t,adc1,adc2`：逐筆加一的整數 `t` 視為樣本編號，採樣率預設 250 Hz，可透過 `--sample-rate` 或網頁輸入欄調整。ADC 數值保留原始單位，不自行轉換為微伏。
-- `time_s,CH1_raw_uV,CH1_filtered_uV`：時間以秒計，自動推算採樣率，各訊號欄可獨立選擇分析。`time` 或非樣本編號的 `t` 也視為秒數。
-- 無時間欄的數值 CSV 使用指定／預設採樣率。CSV 須含標頭、等長數值列，不接受缺值或無限值。
-- 時間遞增但間隔不均勻時，依總時間推算採樣率，並線性插值為等間距。時間重複或倒退時，以正向時間差的中位數估算採樣率，保留列順序並顯示提示；此時時間軸為估計值。現有 processed CSV 包含此類時間倒退，估算約 333.33 Hz。
+- 所有 CSV 採樣率固定 **250 Hz**，時間軸以「樣本序號 ÷ 250」建立。`t`、`time_s`、`time` 不作為訊號通道，也不參與採樣率推算；保留原始列順序與訊號數值，不依時間欄排序或插值。CLI 已移除 `--sample-rate` 選項。
+- `t,adc1,adc2`：ADC 數值保留原始單位，不自行轉換為微伏。
+- `time_s,CH1_raw_uV,CH1_filtered_uV`：各訊號欄可獨立選擇分析。現有 processed CSV 的 92,000 筆資料代表 **368 秒**。
+- CSV 須含標頭、等長數值列，不接受缺值或無限值。EDF/BDF 仍依檔案標頭讀取原始採樣率，再使用既有流程重新取樣至 250 Hz。
 
 # EEG 腦波訊號判讀小程式
 
