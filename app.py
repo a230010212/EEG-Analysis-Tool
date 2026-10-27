@@ -12,12 +12,17 @@ import main as backend  # 匯入 main.py 作為後端邏輯
 st.set_page_config(page_title="EEG 腦波訊號分析", layout="wide")
 
 st.title("EEG 腦波訊號分析")
-st.markdown("上傳 EDF/BDF 檔案進行時頻域分析")
+st.markdown("上傳 EDF/BDF/CSV 檔案進行時頻域分析")
 
 # 檔案上傳
-uploaded_file = st.file_uploader("選擇 EDF/BDF 檔案", type=["edf", "bdf"])
+uploaded_file = st.file_uploader("選擇 EDF/BDF/CSV 檔案", type=["edf", "bdf", "csv"])
 
 if uploaded_file is not None:
+    csv_sample_rate = 250.0
+    if Path(uploaded_file.name).suffix.lower() == '.csv':
+        csv_sample_rate = st.number_input("CSV 採樣率 (Hz，無時間欄或 t 為樣本編號時使用)",
+                                          min_value=0.1, value=250.0)
+        st.caption("time_s / time 為秒數，自動推算採樣率；逐筆加一的整數 t 視為樣本編號。ADC 保留原始單位。")
     # 儲存暫存檔 (因為 backend.read_edf 需要檔案路徑)
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
@@ -29,12 +34,15 @@ if uploaded_file is not None:
         
         # 讀取檔案
         with st.spinner("正在讀取檔案..."):
-            signals, signal_headers, header = backend.read_edf(tmp_path)
+            signals, signal_headers, header = backend.read_recording(tmp_path, sample_rate=csv_sample_rate)
             
         # 顯示標頭資訊
         col1, col2 = st.columns(2)
         with col1:
-            st.info(f"檔案格式: {header['format']} ({header['bit_depth']}-bit)")
+            st.info(f"檔案格式: {header['format']}" +
+                    (f" ({header['bit_depth']}-bit)" if header['bit_depth'] else ""))
+            for note in header.get('notes', []):
+                st.caption(note)
             st.text(f"患者資訊: {header['patient']}")
         with col2:
             st.text(f"錄製日期: {header['startdate']} {header['starttime']}")

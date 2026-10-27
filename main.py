@@ -3,7 +3,7 @@ EEG 腦波訊號分析主程式
 基於 MATLAB 代碼邏輯轉譯而成
 
 功能:
-    1. 讀取 EDF/BDF 檔案
+    1. 讀取 EDF/BDF/CSV 檔案
     2. 提取指定通道數據
     3. 應用帶通濾波器 (1-30 Hz)
     4. 計算 FFT
@@ -24,13 +24,90 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from pathlib import Path
 import struct
+import argparse
+import csv
+
+
+def read_csv(filepath, sample_rate=250.0):
+    """Read numeric CSV. time_s/time are seconds; unit-step integer t is an index."""
+    if not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError('CSV sample rate must be finite and positive')
+    with open(filepath, encoding='utf-8-sig', newline='') as stream:
+        rows = [row for row in csv.reader(stream) if any(cell.strip() for cell in row)]
+    if len(rows) < 3:
+        raise ValueError('CSV requires a header and at least two samples')
+    labels = [cell.strip() for cell in rows[0]]
+    if not all(labels) or len(set(labels)) != len(labels):
+        raise ValueError('CSV column names must be nonempty and unique')
+    try:
+        data = np.array([[float(cell) for cell in row] for row in rows[1:]])
+    except ValueError as exc:
+        raise ValueError('CSV rows must have equal length and numeric values') from exc
+    if data.ndim != 2 or data.shape[1] != len(labels) or not np.isfinite(data).all():
+        raise ValueError('CSV contains missing/nonfinite values or mismatched columns')
+    names = [label.lower() for label in labels]
+    time_index = next((names.index(name) for name in ('time_s', 'time', 't') if name in names), None)
+    notes = []
+    times = None
+    if time_index is not None:
+        values = data[:, time_index]
+        steps = np.diff(values)
+        is_counter = names[time_index] == 't' and np.allclose(steps, 1) and np.allclose(values, np.round(values))
+        if is_counter:
+            notes.append(f't is a sample index; using {sample_rate:g} Hz')
+        else:
+            if np.any(steps <= 0):
+                positive_steps = steps[steps > 0]
+                if not len(positive_steps):
+                    raise ValueError('CSV timestamps have no positive intervals')
+                sample_rate = 1 / np.median(positive_steps)
+                notes.append('Timestamps repeat or move backwards: rate estimated from median positive interval; row order preserved on a uniform grid')
+            else:
+                times = values - values[0]
+                sample_rate = (len(values) - 1) / times[-1]
+            if not np.isfinite(sample_rate) or sample_rate <= 0:
+                raise ValueError('Cannot infer a valid CSV sample rate')
+            if times is not None and not np.allclose(steps, 1 / sample_rate, rtol=0.01, atol=1e-9):
+                notes.append('Uneven timestamps: linearly interpolated onto a uniform time grid')
+    else:
+        notes.append(f'No timestamps; using {sample_rate:g} Hz')
+    channels = [i for i in range(len(labels)) if i != time_index]
+    if not channels:
+        raise ValueError('CSV has no signal channels')
+    uniform_time = np.arange(len(data)) / sample_rate
+    signals = [np.interp(uniform_time, times, data[:, i]) if times is not None else data[:, i].copy()
+               for i in channels]
+    headers = [{'label': labels[i], 'sample_rate': sample_rate, 'n_samples': len(data),
+                'dimension': 'uV' if names[i].endswith('_uv') else 'ADC' if names[i].startswith('adc') else ''}
+               for i in channels]
+    header = {'format': 'CSV', 'bit_depth': None, 'patient': '', 'startdate': '', 'starttime': '',
+              'n_channels': len(channels), 'n_records': 1, 'record_duration': len(data) / sample_rate,
+              'notes': notes}
+    return signals, headers, header
+
+
+def read_recording(filepath, sample_rate=250.0):
+    """Dispatch CSV while preserving the existing EDF/BDF/CSV reader."""
+    suffix = Path(filepath).suffix.lower()
+    if suffix == '.csv':
+        return read_csv(filepath, sample_rate)
+    if suffix in ('.edf', '.bdf'):
+        return read_edf(filepath)
+    raise ValueError(f'Unsupported recording format: {suffix}')
+
+
+def list_recording_files():
+    """Append raw_data CSV files, preserving existing EDF/BDF/CSV numbering."""
+    raw_folder = current_dir / 'raw_data'
+    csv_files = sorted(p for p in raw_folder.rglob('*') if p.is_file() and p.suffix.lower() == '.csv')
+    return list_edf_files() + csv_files
 
 # 設定中文字體（Windows）
 plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial']
 plt.rcParams['axes.unicode_minus'] = False
 
-# EDF/BDF 檔案資料夾
-# EDF/BDF 檔案資料夾
+# EDF/BDF/CSV 檔案資料夾
+# EDF/BDF/CSV 檔案資料夾
 # 優先搜尋執行檔所在目錄下的 .edf 資料夾
 current_dir = Path.cwd()
 local_edf = current_dir / ".edf"
@@ -45,7 +122,7 @@ print(f"EdF 資料夾位置: {EDF_FOLDER}")
 
 
 # ============================================================
-# 第1部分：EDF/BDF 檔案讀取
+# 第1部分：EDF/BDF/CSV 檔案讀取
 # 對應 MATLAB: edfinfo() + edfread()
 # ============================================================
 
@@ -59,7 +136,7 @@ def read_edf(filepath):
     - BDF: BioSemi Data Format (24-bit)
 
     參數:
-        filepath: EDF/BDF 檔案路徑
+        filepath: EDF/BDF/CSV 檔案路徑
 
     返回:
         signals: 各通道訊號數據 (list of arrays)
@@ -340,7 +417,7 @@ def plot_signal_quality(tt, eeg, ff, pxx, tspec, fspec, Sxx, channel_label,
 # ============================================================
 
 def list_edf_files():
-    """列出所有 EDF/BDF 檔案"""
+    """列出所有 EDF/BDF/CSV 檔案"""
     edf_files = []
 
     if not EDF_FOLDER.exists():
@@ -359,15 +436,15 @@ def list_edf_files():
 def display_files(edf_files):
     """顯示檔案列表"""
     print("\n" + "=" * 60)
-    print("可用的 EDF/BDF 檔案")
+    print("可用的 EDF/BDF/CSV 檔案")
     print("=" * 60)
 
     if not edf_files:
-        print("沒有找到任何 EDF/BDF 檔案！")
+        print("沒有找到任何 EDF/BDF/CSV 檔案！")
         return
 
     for i, edf_path in enumerate(edf_files, 1):
-        rel_path = edf_path.relative_to(EDF_FOLDER)
+        rel_path = edf_path.relative_to(current_dir) if edf_path.is_relative_to(current_dir) else edf_path
         file_size = edf_path.stat().st_size / 1024  # KB
         file_type = edf_path.suffix.upper()[1:]
         print(f"  [{i}] {rel_path} ({file_size:.1f} KB) [{file_type}]")
@@ -465,9 +542,9 @@ def select_channel_interactive(signal_headers):
 # 對應 MATLAB 主程式邏輯
 # ============================================================
 
-def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, show_welch=None):
+def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, show_welch=None, sample_rate=250.0):
     """
-    分析 EDF/BDF 檔案 - 對應 MATLAB 主程式完整流程
+    分析 EDF/BDF/CSV 檔案 - 對應 MATLAB 主程式完整流程
 
     MATLAB 代碼流程:
     1. edfinfo / edfread  → 讀取 EDF 檔案
@@ -478,7 +555,7 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, 
     6. subplot 繪圖       → 時域 + 頻域圖
 
     參數:
-        edf_path: EDF/BDF 檔案路徑
+        edf_path: EDF/BDF/CSV 檔案路徑
         channel_index: 通道索引（None 表示互動選擇）
         window_start: 時域圖要放大檢視的起始時間，秒（None 表示互動選擇）
         show_fft: 是否顯示原始 FFT 頻譜圖（None 表示互動選擇）
@@ -491,10 +568,12 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, 
 
     # === 1. 讀取 EDF 檔案 ===
     # 對應 MATLAB: info = edfinfo('...'); data = edfread('...');
-    signals, signal_headers, header = read_edf(edf_path)
+    signals, signal_headers, header = read_recording(edf_path, sample_rate)
 
     # 顯示檔案資訊
-    print(f"檔案格式: {header['format']} ({header['bit_depth']}-bit)")
+    print(f"檔案格式: {header['format']}")
+    for note in header.get('notes', []):
+        print(note)
     print(f"患者資訊: {header['patient']}")
     print(f"錄製日期: {header['startdate']} {header['starttime']}")
     print(f"通道數量: {header['n_channels']}")
@@ -581,50 +660,49 @@ def analyze_edf(edf_path, channel_index=None, window_start=None, show_fft=None, 
 
 def main():
     """主程式 - 支援命令列參數與互動式選擇"""
+    # Windows legacy consoles may not encode every recording filename.
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(errors='replace')
     print("\n" + "=" * 60)
     print("EEG 腦波訊號分析程式")
     print("基於 MATLAB 代碼邏輯 (bandpass + FFT)")
     print("=" * 60)
 
-    # 取得所有 EDF/BDF 檔案
-    edf_files = list_edf_files()
+    # 取得所有 EDF/BDF/CSV 檔案
+    edf_files = list_recording_files()
 
     # 處理命令列參數
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-
-        if arg == '--list' or arg == '-l':
-            display_files(edf_files)
-            return
-
-        if arg == '--help' or arg == '-h':
-            print(__doc__)
-            return
-
-        # 嘗試解析為檔案編號
+    parser = argparse.ArgumentParser(description="Analyze EDF/BDF/CSV EEG recordings")
+    parser.add_argument('file', nargs='?', help="File path or listed file number")
+    parser.add_argument('--list', '-l', action='store_true', help="List .edf/ and raw_data/ recordings")
+    parser.add_argument('--sample-rate', type=float, default=250.0, help="CSV fallback sample rate in Hz (default: 250); timestamps take priority")
+    args = parser.parse_args()
+    if not np.isfinite(args.sample_rate) or args.sample_rate <= 0:
+        parser.error('--sample-rate must be finite and positive')
+    if args.list:
+        display_files(edf_files)
+        return
+    if args.file:
         try:
-            index = int(arg) - 1
-            if 0 <= index < len(edf_files):
-                analyze_edf(edf_files[index])
+            if args.file.isdigit():
+                index = int(args.file) - 1
+                if not 0 <= index < len(edf_files):
+                    parser.error('File number out of range')
+                selected_file = edf_files[index]
             else:
-                print(f"錯誤: 檔案編號須在 1 到 {len(edf_files)} 之間")
-        except ValueError:
-            # 嘗試作為檔案路徑
-            selected_file = Path(arg)
-            if selected_file.exists():
-                analyze_edf(selected_file)
-            else:
-                print(f"錯誤: 找不到檔案 {arg}")
+                selected_file = Path(args.file)
+            analyze_edf(selected_file, sample_rate=args.sample_rate)
+        except (OSError, ValueError) as exc:
+            parser.exit(1, f"Error: {exc}\n")
         return
 
-    # 互動式模式 - 支援連續分析
     while True:
         selected_file = select_file_interactive(edf_files)
         if selected_file is None:
             break
 
         try:
-            analyze_edf(selected_file)
+            analyze_edf(selected_file, sample_rate=args.sample_rate)
         except Exception as e:
             print(f"\n錯誤: {e}")
             import traceback
@@ -638,7 +716,7 @@ def main():
             break
 
         # 重新整理檔案列表
-        edf_files = list_edf_files()
+        edf_files = list_recording_files()
 
 
 if __name__ == "__main__":

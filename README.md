@@ -1,4 +1,23 @@
 https://eeg-analysis-tool-niehfhtem8valk9rd2nuse.streamlit.app/
+
+## CSV 腦波分析
+
+CLI 與網頁版均支援 CSV，使用與 EDF/BDF 相同的重新取樣至 250 Hz、帶通濾波、FFT、Welch 頻譜與時頻圖流程。
+
+```bash
+python main.py --list
+python main.py raw_data/raw原始_.csv
+python main.py raw_data/raw原始_.csv --sample-rate 500
+streamlit run app.py
+python -m unittest discover -s tests -v
+```
+
+- CLI 的檔案列表包含 `.edf/` 下的 EDF/BDF 與 `raw_data/` 下的 CSV；原有 EDF/BDF 編號保留，CSV 接在後面。網頁版可直接上傳 CSV。
+- `t,adc1,adc2`：逐筆加一的整數 `t` 視為樣本編號，採樣率預設 250 Hz，可透過 `--sample-rate` 或網頁輸入欄調整。ADC 數值保留原始單位，不自行轉換為微伏。
+- `time_s,CH1_raw_uV,CH1_filtered_uV`：時間以秒計，自動推算採樣率，各訊號欄可獨立選擇分析。`time` 或非樣本編號的 `t` 也視為秒數。
+- 無時間欄的數值 CSV 使用指定／預設採樣率。CSV 須含標頭、等長數值列，不接受缺值或無限值。
+- 時間遞增但間隔不均勻時，依總時間推算採樣率，並線性插值為等間距。時間重複或倒退時，以正向時間差的中位數估算採樣率，保留列順序並顯示提示；此時時間軸為估計值。現有 processed CSV 包含此類時間倒退，估算約 333.33 Hz。
+
 # EEG 腦波訊號判讀小程式
 
 這是一個用於分析腦波訊號 (EEG) 的 Python 應用程式。支援讀取 EDF/BDF 格式檔案，進行訊號預處理（帶通濾波）、頻譜分析 (FFT)，並繪製時域與頻域的視覺化圖表。
