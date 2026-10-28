@@ -1,0 +1,29 @@
+<section class="time-window" aria-label="時域圖檢視片段">
+  <div class="heading">
+    <strong>時域圖檢視片段</strong>
+    <span class="duration"></span>
+  </div>
+  <p class="hint" id="window-help">拖曳中間色塊移動整段，拖曳兩端調整長度。</p>
+  <div class="track-area">
+    <div class="track">
+      <div class="rail"></div>
+      <div class="selection" role="slider" tabindex="0" aria-label="整段移動" aria-describedby="window-help" data-part="move">
+        <span class="grip" aria-hidden="true">⠿</span>
+      </div>
+      <div class="handle start" role="slider" tabindex="0" aria-label="起始時間" data-part="start"><span></span></div>
+      <div class="handle end" role="slider" tabindex="0" aria-label="結束時間" data-part="end"><span></span></div>
+    </div>
+  </div>
+  <div class="scale"><span>0 秒</span><span class="total"></span></div>
+  <div class="drag-helper" role="slider" tabindex="0" data-part="move" aria-label="整段拖曳控制">⠿ 左右拖曳以移動整段</div>
+  <div class="controls">
+    <label>起始 <input class="start-input" type="number" step="0.1" min="0" aria-label="起始秒數"> 秒</label>
+    <span class="separator" aria-hidden="true">—</span>
+    <label>結束 <input class="end-input" type="number" step="0.1" min="0" aria-label="結束秒數"> 秒</label>
+    <div class="navigation">
+      <button type="button" class="previous" aria-label="往前移動一個區間" title="往前移動一個區間">← 前一段</button>
+      <button type="button" class="next" aria-label="往後移動一個區間" title="往後移動一個區間">後一段 →</button>
+    </div>
+  </div>
+  <p class="keyboard-hint">也可輸入秒數；聚焦色塊後按 ← → 移動，Shift 加速。</p>
+</section>

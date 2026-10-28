@@ -4,6 +4,8 @@ https://eeg-analysis-tool-niehfhtem8valk9rd2nuse.streamlit.app/
 
 CLI 與網頁版均支援 CSV，使用與 EDF/BDF 相同的重新取樣至 250 Hz、帶通濾波、FFT、Welch 頻譜與時頻圖流程。
 
+網頁版「進階設定」中的時間選取器支援拖曳中間色塊移動整段、拖曳兩端調整長度，以及直接輸入起訖秒數。「前一段／後一段」會按目前區間長度平移；聚焦色塊後可用方向鍵移動（每次 0.1 秒，Shift 為 1 秒），Home／End 移至錄音兩端。放開拖曳後會保留選取範圍，按「開始分析」套用。此元件需要 Streamlit 1.54 以上，更新時請執行 `pip install -r requirements.txt`。
+
 ```bash
 python main.py --list
 python main.py raw_data/raw原始_.csv

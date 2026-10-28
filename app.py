@@ -5,9 +5,11 @@ import streamlit as st
 import numpy as np
 import tempfile
 import os
+import hashlib
 from pathlib import Path
 from scipy import signal
 import main as backend  # 匯入 main.py 作為後端邏輯
+from time_window import time_window
 
 st.set_page_config(page_title="EEG 腦波訊號分析", layout="wide")
 
@@ -71,11 +73,10 @@ if uploaded_file is not None:
             show_welch = st.checkbox("顯示 Welch 平均頻譜", value=True)
 
             if total_duration > 1:
-                default_end = min(30.0, total_duration)
-                window_start, window_end = st.slider(
-                    "時域圖檢視片段 (秒)，可拖曳兩端調整長度、拖曳整段移動位置",
-                    min_value=0.0, max_value=float(total_duration),
-                    value=(0.0, default_end), step=1.0,
+                recording_id = hashlib.sha256(uploaded_file.getvalue()).hexdigest()[:16]
+                window_start, window_end = time_window(
+                    float(total_duration),
+                    key=f'time_window_{recording_id}_{channel_index}',
                 )
                 window_duration = window_end - window_start
             else:

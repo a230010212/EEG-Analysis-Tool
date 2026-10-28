@@ -66,4 +66,9 @@ xls/
 
 # Markdown files
 claude.md
+
+# Browser verification artifacts
+.playwright-cli/
+output/playwright/
 AGENTS.md
+test.md
