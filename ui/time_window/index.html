@@ -17,13 +17,13 @@
   <div class="scale"><span>0 秒</span><span class="total"></span></div>
   <div class="drag-helper" role="slider" tabindex="0" data-part="move" aria-label="整段拖曳控制">⠿ 左右拖曳以移動整段</div>
   <div class="controls">
-    <label>起始 <input class="start-input" type="number" step="0.1" min="0" aria-label="起始秒數"> 秒</label>
+    <label>起始 <input class="start-input" type="number" step="1" min="0" aria-label="起始秒數"> 秒</label>
     <span class="separator" aria-hidden="true">—</span>
-    <label>結束 <input class="end-input" type="number" step="0.1" min="0" aria-label="結束秒數"> 秒</label>
+    <label>結束 <input class="end-input" type="number" step="1" min="0" aria-label="結束秒數"> 秒</label>
     <div class="navigation">
       <button type="button" class="previous" aria-label="往前移動一個區間" title="往前移動一個區間">← 前一段</button>
       <button type="button" class="next" aria-label="往後移動一個區間" title="往後移動一個區間">後一段 →</button>
     </div>
   </div>
-  <p class="keyboard-hint">也可輸入秒數；聚焦色塊後按 ← → 移動，Shift 加速。</p>
+  <p class="keyboard-hint">直接輸入整數秒數；聚焦色塊後按 ← → 每次移動 1 秒，Shift 每次移動 10 秒。</p>
 </section>

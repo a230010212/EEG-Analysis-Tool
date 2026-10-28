@@ -18,10 +18,12 @@ def time_window(total_duration, *, key):
     """Return (start, end) in seconds; only commit pointer changes on release."""
     initial = [0.0, min(30.0, total_duration)]
     selection = st.session_state.get(key, {}).get('selection', initial)
+    # Keep previously saved fractional selections from leaking into the UI.
+    selection = [float(int(float(value) + 0.5)) for value in selection]
     try:
         result = _component(
             key=key,
-            data={'total': total_duration, 'selection': selection, 'step': 0.1},
+        data={'total': total_duration, 'selection': selection, 'step': 1},
             default={'selection': initial},
             on_selection_change=lambda: None,
         )

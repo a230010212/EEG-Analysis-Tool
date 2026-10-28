@@ -14,8 +14,8 @@ export default function({parentElement, data, setStateValue}) {
   const clamp = (v, low, high) => Math.max(low, Math.min(high, v));
   const snap = v => Math.round(v / step) * step;
   const format = v => Number(v.toFixed(3)).toString();
-  let start = clamp(data.selection[0], 0, total - minimum);
-  let end = clamp(data.selection[1], start + minimum, total);
+  let start = clamp(snap(data.selection[0]), 0, total - minimum);
+  let end = clamp(snap(data.selection[1]), start + minimum, total);
   let drag = null;
   const controller = new AbortController();
   const on = (element, name, handler) => element.addEventListener(name, handler, {signal: controller.signal});
@@ -54,8 +54,8 @@ export default function({parentElement, data, setStateValue}) {
 
   function move(delta, baseStart = start, baseEnd = end) {
     const offset = clamp(delta, -baseStart, total - baseEnd);
-    start = baseStart + offset;
-    end = baseEnd + offset;
+    start = snap(baseStart + offset);
+    end = snap(baseEnd + offset);
   }
 
   on(root, 'pointerdown', event => {
@@ -73,8 +73,8 @@ export default function({parentElement, data, setStateValue}) {
     if (!drag || event.pointerId !== drag.id) return;
     const delta = snap((event.clientX - drag.x) / drag.width * total);
     if (drag.part === 'move') move(delta, drag.start, drag.end);
-    if (drag.part === 'start') start = clamp(drag.start + delta, 0, end - minimum);
-    if (drag.part === 'end') end = clamp(drag.end + delta, start + minimum, total);
+    if (drag.part === 'start') start = clamp(snap(drag.start + delta), 0, end - minimum);
+    if (drag.part === 'end') end = clamp(snap(drag.end + delta), start + minimum, total);
     render();
   });
 
@@ -113,11 +113,11 @@ export default function({parentElement, data, setStateValue}) {
   });
 
   on(startInput, 'change', () => {
-    if (startInput.value !== '' && Number.isFinite(startInput.valueAsNumber)) start = clamp(startInput.valueAsNumber, 0, end - minimum);
+    if (startInput.value !== '' && Number.isFinite(startInput.valueAsNumber)) start = clamp(snap(startInput.valueAsNumber), 0, end - minimum);
     render(); commit();
   });
   on(endInput, 'change', () => {
-    if (endInput.value !== '' && Number.isFinite(endInput.valueAsNumber)) end = clamp(endInput.valueAsNumber, start + minimum, total);
+    if (endInput.value !== '' && Number.isFinite(endInput.valueAsNumber)) end = clamp(snap(endInput.valueAsNumber), start + minimum, total);
     render(); commit();
   });
   on(previous, 'click', () => { move(-(end - start)); render(); commit(); });
@@ -125,5 +125,7 @@ export default function({parentElement, data, setStateValue}) {
   const observer = new ResizeObserver(render);
   observer.observe(track);
   render();
+  // Normalize persisted values from the former fractional-second slider.
+  setStateValue('selection', [Number(start.toFixed(6)), Number(end.toFixed(6))]);
   return () => { controller.abort(); observer.disconnect(); };
 }
